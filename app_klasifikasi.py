@@ -33,7 +33,7 @@ st.markdown("""
 # =============================
 # LOAD MODEL
 # =============================
-model = joblib.load("model.pkl")
+model_random_forest = joblib.load("model_random_forest.pkl")
 
 # =============================
 # HEADER
@@ -108,8 +108,8 @@ if mode == "Manual":
             "Trihalomethanes","Turbidity"
         ])
 
-        pred = model.predict(input_df)[0]
-        prob = model.predict_proba(input_df)[0][1]
+        pred = model_random_forest.predict(input_df)[0]
+        prob = model_random_forest.predict_proba(input_df)[0][1]
 
         st.markdown("## 📊 Hasil Analisis")
 
@@ -139,8 +139,8 @@ else:
 
         if st.button("🚀 Analisis Semua Data"):
 
-            pred = model.predict(df)
-            prob = model.predict_proba(df)[:,1]
+            pred = model_random_forest.predict(df)
+            prob = model_random_forest.predict_proba(df)[:,1]
 
             df["Prediction"] = pred
             df["Probability"] = prob
