@@ -5,6 +5,8 @@ import joblib
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import VotingClassifier
 
 # ======================================
 # PAGE CONFIG
@@ -52,19 +54,30 @@ X = df.drop("Potability", axis=1)
 y = df["Potability"]
 
 # ======================================
-# LOAD MODELS (.pkl)
+# LOAD MODELS (.pkl YANG KAMU PUNYA)
 # ======================================
-rf = joblib.load("random_forest.pkl")
-svm = joblib.load("svm_model.pkl")
-scaler = joblib.load("scaler.pkl")
-ensemble = joblib.load("ensemble.pkl")
+rf = joblib.load("model_random_forest.pkl")
+svm = joblib.load("support_vector_machine.pkl")
+
+# ======================================
+# SCALER (BUAT OTOMATIS)
+# ======================================
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# ======================================
+# ENSEMBLE (BUAT OTOMATIS)
+# ======================================
+ensemble = VotingClassifier(
+    estimators=[('rf', rf), ('svm', svm)],
+    voting='soft'
+)
+ensemble.fit(X_scaled, y)
 
 # ======================================
 # MODEL ACCURACY
 # ======================================
 rf_acc = accuracy_score(y, rf.predict(X))
-
-X_scaled = scaler.transform(X)
 svm_acc = accuracy_score(y, svm.predict(X_scaled))
 ensemble_acc = accuracy_score(y, ensemble.predict(X_scaled))
 
@@ -84,13 +97,10 @@ col1.metric("🌳 Random Forest", f"{rf_acc:.3f}")
 col2.metric("🔵 SVM", f"{svm_acc:.3f}")
 col3.metric("🤖 Ensemble", f"{ensemble_acc:.3f}")
 
-# Performance Chart
 fig, ax = plt.subplots()
 ax.bar(models, scores)
 ax.set_ylim(0,1)
 ax.set_ylabel("Accuracy")
-ax.set_facecolor("#1E1E2F")
-fig.patch.set_facecolor("#0E1117")
 st.pyplot(fig)
 
 st.success(f"🏆 Best Model Automatically Selected: {best_model_name}")
@@ -142,7 +152,6 @@ if st.button("🚀 Analyze Water Quality"):
 
     prob = probability[0][1]
 
-    # Gauge Chart
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=prob * 100,
