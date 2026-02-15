@@ -6,7 +6,6 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import VotingClassifier
 
 # ======================================
 # PAGE CONFIG
@@ -42,7 +41,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<p class="big-title">💧 Enterprise Water Quality AI</p>', unsafe_allow_html=True)
-st.caption("Random Forest vs SVM vs Voting Ensemble")
+st.caption("Random Forest vs Support Vector Machine")
 
 # ======================================
 # LOAD DATA
@@ -60,29 +59,19 @@ rf = joblib.load("model_random_forest.pkl")
 svm = joblib.load("support_vector_machine.pkl")
 
 # ======================================
-# SCALER (BUAT OTOMATIS)
+# SCALING UNTUK SVM (BUAT OTOMATIS)
 # ======================================
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
-
-# ======================================
-# ENSEMBLE (BUAT OTOMATIS)
-# ======================================
-ensemble = VotingClassifier(
-    estimators=[('rf', rf), ('svm', svm)],
-    voting='soft'
-)
-ensemble.fit(X_scaled, y)
 
 # ======================================
 # MODEL ACCURACY
 # ======================================
 rf_acc = accuracy_score(y, rf.predict(X))
 svm_acc = accuracy_score(y, svm.predict(X_scaled))
-ensemble_acc = accuracy_score(y, ensemble.predict(X_scaled))
 
-models = ["Random Forest", "SVM", "Ensemble"]
-scores = [rf_acc, svm_acc, ensemble_acc]
+models = ["Random Forest", "SVM"]
+scores = [rf_acc, svm_acc]
 
 best_model_name = models[np.argmax(scores)]
 
@@ -91,11 +80,10 @@ best_model_name = models[np.argmax(scores)]
 # ======================================
 st.markdown("## 📊 Model Performance Comparison")
 
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 col1.metric("🌳 Random Forest", f"{rf_acc:.3f}")
 col2.metric("🔵 SVM", f"{svm_acc:.3f}")
-col3.metric("🤖 Ensemble", f"{ensemble_acc:.3f}")
 
 fig, ax = plt.subplots()
 ax.bar(models, scores)
@@ -140,18 +128,14 @@ if st.button("🚀 Analyze Water Quality"):
         prediction = rf.predict(input_data)
         probability = rf.predict_proba(input_data)
 
-    elif best_model_name == "SVM":
-        scaled = scaler.transform(input_data)
-        prediction = svm.predict(scaled)
-        probability = svm.predict_proba(scaled)
-
     else:
-        scaled = scaler.transform(input_data)
-        prediction = ensemble.predict(scaled)
-        probability = ensemble.predict_proba(scaled)
+        scaled_input = scaler.transform(input_data)
+        prediction = svm.predict(scaled_input)
+        probability = svm.predict_proba(scaled_input)
 
     prob = probability[0][1]
 
+    # Gauge Chart
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=prob * 100,
