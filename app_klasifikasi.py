@@ -37,7 +37,17 @@ st.markdown("""
 # =============================
 # LOAD MODEL
 # =============================
-model = joblib.load("model_random_forest.pkl")
+from sklearn.ensemble import RandomForestClassifier
+
+dataset = pd.read_csv("water_potability.csv")
+dataset = dataset.dropna()
+
+X = dataset.drop("Potability", axis=1)
+y = dataset["Potability"]
+
+model = RandomForestClassifier(random_state=42)
+model.fit(X, y)
+
 
 # =============================
 # HEADER
