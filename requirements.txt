@@ -6,3 +6,4 @@ pandas
 matplotlib
 plotly
 shap
+plotly
