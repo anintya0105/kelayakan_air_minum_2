@@ -5,8 +5,6 @@ import joblib
 import time
 import plotly.graph_objects as go
 import plotly.express as px
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, roc_curve, auc
 
 # =============================
 # PAGE CONFIG
@@ -27,25 +25,25 @@ st.markdown("""
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] div {color: white;}
 .stButton>button {border-radius: 10px;height:45px;font-weight:bold;width:100%;}
+.info-box {
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+}
 </style>
 """, unsafe_allow_html=True)
 
 # =============================
-# LOAD MODEL & DATA
+# LOAD MODEL
 # =============================
 model = joblib.load("model_random_forest.pkl")
-
-# Dataset untuk evaluasi (WAJIB ADA DI REPO)
-dataset = pd.read_csv("water_potability.csv")
-
-X = dataset.drop("Potability", axis=1)
-y = dataset["Potability"]
 
 # =============================
 # HEADER
 # =============================
 st.title("💧 Enterprise Decision Support System")
-st.subheader("Analisis & Evaluasi Kelayakan Air Minum")
+st.subheader("Analisis Kelayakan Air Minum Berbasis Machine Learning")
 
 # =============================
 # SIDEBAR INPUT
@@ -69,11 +67,11 @@ analyze = st.sidebar.button("🚀 Analisis Sekarang")
 # =============================
 def risk_label(prob):
     if prob >= 0.75:
-        return "🟢 Low Risk"
+        return "🟢 Risiko Rendah"
     elif prob >= 0.5:
-        return "🟡 Medium Risk"
+        return "🟡 Risiko Sedang"
     else:
-        return "🔴 High Risk"
+        return "🔴 Risiko Tinggi"
 
 # =============================
 # ANALYSIS
@@ -89,12 +87,16 @@ if analyze:
         ph, hardness, solids, chloramines,
         sulfate, conductivity, organic_carbon,
         trihalomethanes, turbidity
-    ]], columns=X.columns)
+    ]], columns=[
+        "ph","Hardness","Solids","Chloramines",
+        "Sulfate","Conductivity","Organic_carbon",
+        "Trihalomethanes","Turbidity"
+    ])
 
     pred = model.predict(input_df)[0]
     prob = model.predict_proba(input_df)[0][1]
 
-    st.markdown("## 📊 Hasil Prediksi")
+    st.markdown("## 📊 Hasil Analisis")
 
     col1, col2 = st.columns(2)
 
@@ -103,7 +105,7 @@ if analyze:
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=prob * 100,
-            title={'text': "Probabilitas Layak (%)"},
+            title={'text': "Probabilitas Kelayakan (%)"},
             gauge={
                 'axis': {'range': [0, 100]},
                 'steps': [
@@ -115,9 +117,8 @@ if analyze:
         ))
         st.plotly_chart(fig, use_container_width=True)
 
-    # RESULT
     with col2:
-        st.metric("Risk Level", risk_label(prob))
+        st.metric("Tingkat Risiko", risk_label(prob))
         if pred == 1:
             st.success("### ✅ Air Layak Minum")
         else:
@@ -126,67 +127,72 @@ if analyze:
     # =============================
     # FEATURE IMPORTANCE
     # =============================
-    st.markdown("## 📈 Feature Importance")
+    st.markdown("## 📈 Parameter Paling Berpengaruh")
 
     importance_df = pd.DataFrame({
-        "Feature": X.columns,
-        "Importance": model.feature_importances_
-    }).sort_values(by="Importance", ascending=True)
+        "Parameter": input_df.columns,
+        "Tingkat Pengaruh": model.feature_importances_
+    }).sort_values(by="Tingkat Pengaruh", ascending=True)
 
     fig2 = px.bar(
         importance_df,
-        x="Importance",
-        y="Feature",
+        x="Tingkat Pengaruh",
+        y="Parameter",
         orientation='h'
     )
+
     st.plotly_chart(fig2, use_container_width=True)
 
-    # =============================
-    # CONFUSION MATRIX
-    # =============================
-    st.markdown("## 📊 Confusion Matrix")
+# =============================
+# PENJELASAN PARAMETER
+# =============================
+st.markdown("## 📘 Penjelasan Parameter Kualitas Air")
 
-    y_pred = model.predict(X)
-    cm = confusion_matrix(y, y_pred)
+st.markdown("""
+### 1️⃣ pH
+Menunjukkan tingkat keasaman atau kebasaan air.  
+Rentang ideal air minum: **6.5 – 8.5**.  
+- pH terlalu rendah → air bersifat asam, dapat menyebabkan korosi pipa dan gangguan pencernaan.  
+- pH terlalu tinggi → rasa pahit dan dapat mengganggu metabolisme tubuh.
 
-    fig3 = plt.figure()
-    plt.imshow(cm)
-    plt.title("Confusion Matrix")
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-    plt.colorbar()
-    st.pyplot(fig3)
+### 2️⃣ Hardness
+Mengukur kadar kalsium dan magnesium.  
+- Terlalu tinggi → menyebabkan kerak dan gangguan ginjal jangka panjang.  
+- Terlalu rendah → air terasa hambar.
 
-    # =============================
-    # ROC CURVE
-    # =============================
-    st.markdown("## 📈 ROC Curve")
+### 3️⃣ Solids (TDS)
+Total zat terlarut dalam air.  
+- Tinggi → rasa tidak enak dan kemungkinan kontaminasi.  
+- Terlalu rendah → air miskin mineral.
 
-    y_prob = model.predict_proba(X)[:,1]
-    fpr, tpr, _ = roc_curve(y, y_prob)
-    roc_auc = auc(fpr, tpr)
+### 4️⃣ Chloramines
+Digunakan sebagai desinfektan.  
+- Berlebihan → iritasi kulit dan mata.  
+- Kurang → risiko mikroorganisme tidak mati.
 
-    fig4 = plt.figure()
-    plt.plot(fpr, tpr)
-    plt.plot([0,1],[0,1],'--')
-    plt.title(f"ROC Curve (AUC = {roc_auc:.2f})")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    st.pyplot(fig4)
+### 5️⃣ Sulfate
+Mineral alami dalam air.  
+- Tinggi → dapat menyebabkan efek laksatif.  
 
-    # =============================
-    # DISTRIBUTION
-    # =============================
-    st.markdown("## 📊 Distribusi Probabilitas Dataset")
+### 6️⃣ Conductivity
+Kemampuan air menghantarkan listrik (indikasi ion terlarut).  
+- Tinggi → kandungan mineral tinggi.
 
-    fig5 = plt.figure()
-    plt.hist(y_prob, bins=20)
-    plt.axvline(prob, linestyle="dashed")
-    plt.title("Distribusi Probabilitas")
-    st.pyplot(fig5)
+### 7️⃣ Organic Carbon
+Menunjukkan kandungan bahan organik.  
+- Tinggi → indikasi potensi pertumbuhan bakteri.
+
+### 8️⃣ Trihalomethanes
+Produk sampingan klorinasi.  
+- Tinggi → berpotensi berdampak jangka panjang terhadap kesehatan.
+
+### 9️⃣ Turbidity
+Tingkat kekeruhan air.  
+- Tinggi → menunjukkan adanya partikel tersuspensi dan mikroorganisme.
+""")
 
 # =============================
 # FOOTER
 # =============================
 st.markdown("---")
-st.caption("DSS Kelayakan Air Minum © 2026 | Enterprise ML Dashboard")
+st.caption("DSS Kelayakan Air Minum © 2026 | Enterprise ML-Based Decision Support System")
