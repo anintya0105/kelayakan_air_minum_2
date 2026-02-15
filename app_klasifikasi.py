@@ -2,26 +2,33 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import plotly.graph_objects as go
-import plotly.express as px
-import shap
+import matplotlib.pyplot as plt
 
 # =============================
-# CONFIG
+# PAGE CONFIG
 # =============================
-st.set_page_config(page_title="DSS Kelayakan Air", layout="wide")
+st.set_page_config(
+    page_title="DSS Kelayakan Air Minum",
+    page_icon="💧",
+    layout="wide"
+)
 
 # =============================
-# DARK MODE TOGGLE
+# CUSTOM CSS (Modern Look)
 # =============================
-dark_mode = st.sidebar.toggle("🌙 Dark Mode")
-
-if dark_mode:
-    st.markdown("""
-    <style>
-    body { background-color: #111; color: white; }
-    </style>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+.main {
+    background-color: #f4f6f9;
+}
+.metric-card {
+    background-color: white;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =============================
 # LOAD MODEL
@@ -31,107 +38,152 @@ model = joblib.load("model.pkl")
 # =============================
 # HEADER
 # =============================
-st.title("💧 Enterprise Decision Support System")
-st.caption("Analisis Kelayakan Air Minum Berbasis Machine Learning")
+st.title("💧 Decision Support System")
+st.subheader("Analisis Kelayakan Air Minum Berbasis Machine Learning")
 
 # =============================
-# INPUT
+# EXPLAIN VARIABLES
 # =============================
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    ph = st.number_input("pH", 0.0, 14.0, 7.0)
-    hardness = st.number_input("Hardness", 0.0, 500.0, 150.0)
-    solids = st.number_input("Solids", 0.0, 50000.0, 20000.0)
-
-with col2:
-    chloramines = st.number_input("Chloramines", 0.0, 20.0, 7.0)
-    sulfate = st.number_input("Sulfate", 0.0, 500.0, 300.0)
-    conductivity = st.number_input("Conductivity", 0.0, 1000.0, 400.0)
-
-with col3:
-    organic_carbon = st.number_input("Organic Carbon", 0.0, 50.0, 10.0)
-    trihalomethanes = st.number_input("Trihalomethanes", 0.0, 200.0, 70.0)
-    turbidity = st.number_input("Turbidity", 0.0, 10.0, 4.0)
+with st.expander("📘 Penjelasan Parameter Kualitas Air"):
+    st.markdown("""
+**pH** → Tingkat keasaman/kebasaan air (6.5–8.5 ideal)  
+**Hardness** → Kandungan mineral kalsium & magnesium  
+**Solids (TDS)** → Total zat terlarut  
+**Chloramines** → Desinfektan air  
+**Sulfate** → Kandungan sulfat  
+**Conductivity** → Kemampuan menghantarkan listrik  
+**Organic Carbon** → Kandungan karbon organik  
+**Trihalomethanes** → Produk sampingan klorin  
+**Turbidity** → Tingkat kekeruhan air  
+""")
 
 # =============================
-# ANALYSIS
+# INPUT MODE
 # =============================
-if st.button("🚀 Analisis Premium"):
+st.sidebar.header("⚙ Pengaturan")
+mode = st.sidebar.radio("Metode Input:", ["Manual", "Upload CSV"])
 
-    input_df = pd.DataFrame([[
-        ph, hardness, solids, chloramines,
-        sulfate, conductivity, organic_carbon,
-        trihalomethanes, turbidity
-    ]], columns=[
-        "ph","Hardness","Solids","Chloramines",
-        "Sulfate","Conductivity","Organic_carbon",
-        "Trihalomethanes","Turbidity"
-    ])
+# =============================
+# RISK LABEL FUNCTION
+# =============================
+def risk_label(prob):
+    if prob >= 0.75:
+        return "🟢 Low Risk"
+    elif prob >= 0.5:
+        return "🟡 Medium Risk"
+    else:
+        return "🔴 High Risk"
 
-    pred = model.predict(input_df)[0]
-    prob = model.predict_proba(input_df)[0][1]
+# =============================
+# MANUAL INPUT
+# =============================
+if mode == "Manual":
 
-    st.markdown("## 📊 Hasil Prediksi")
+    col1, col2, col3 = st.columns(3)
 
-    colA, colB = st.columns(2)
+    with col1:
+        ph = st.number_input("pH", 0.0, 14.0, 7.0)
+        hardness = st.number_input("Hardness", 0.0, 500.0, 150.0)
+        solids = st.number_input("Solids", 0.0, 50000.0, 20000.0)
 
-    with colA:
-        st.metric("Probabilitas Layak", f"{prob*100:.2f}%")
+    with col2:
+        chloramines = st.number_input("Chloramines", 0.0, 20.0, 7.0)
+        sulfate = st.number_input("Sulfate", 0.0, 500.0, 300.0)
+        conductivity = st.number_input("Conductivity", 0.0, 1000.0, 400.0)
 
-    with colB:
-        if pred == 1:
-            st.success("Air Layak Minum")
-        else:
-            st.error("Air Tidak Layak")
+    with col3:
+        organic_carbon = st.number_input("Organic Carbon", 0.0, 50.0, 10.0)
+        trihalomethanes = st.number_input("Trihalomethanes", 0.0, 200.0, 70.0)
+        turbidity = st.number_input("Turbidity", 0.0, 10.0, 4.0)
 
-    # =============================
-    # GAUGE CHART
-    # =============================
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=prob*100,
-        title={'text': "Kelayakan (%)"},
-        gauge={
-            'axis': {'range': [0,100]},
-            'bar': {'color': "blue"},
-            'steps': [
-                {'range': [0,50], 'color': "red"},
-                {'range': [50,75], 'color': "yellow"},
-                {'range': [75,100], 'color': "green"}
-            ],
-        }
-    ))
+    if st.button("🚀 Analisis"):
 
-    st.plotly_chart(fig, use_container_width=True)
+        input_df = pd.DataFrame([[
+            ph, hardness, solids, chloramines,
+            sulfate, conductivity, organic_carbon,
+            trihalomethanes, turbidity
+        ]], columns=[
+            "ph","Hardness","Solids","Chloramines",
+            "Sulfate","Conductivity","Organic_carbon",
+            "Trihalomethanes","Turbidity"
+        ])
 
-    # =============================
-    # FEATURE IMPORTANCE
-    # =============================
-    if hasattr(model, "feature_importances_"):
-        importance = model.feature_importances_
-        features = input_df.columns
+        pred = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[0][1]
 
-        imp_df = pd.DataFrame({
-            "Feature": features,
-            "Importance": importance
-        }).sort_values("Importance", ascending=False)
+        st.markdown("## 📊 Hasil Analisis")
 
-        st.markdown("## 📈 Feature Importance")
-        fig2 = px.bar(imp_df, x="Importance", y="Feature", orientation="h")
-        st.plotly_chart(fig2, use_container_width=True)
+        colA, colB, colC = st.columns(3)
 
-    # =============================
-    # SHAP EXPLAINABILITY
-    # =============================
-    try:
-        st.markdown("## 🧠 SHAP Explainability")
+        with colA:
+            st.metric("Probabilitas Layak", f"{prob*100:.2f}%")
 
-        explainer = shap.Explainer(model)
-        shap_values = explainer(input_df)
+        with colB:
+            st.metric("Risk Level", risk_label(prob))
 
-        shap_fig = shap.plots.waterfall(shap_values[0], show=False)
-        st.pyplot(bbox_inches="tight")
+        with colC:
+            if pred == 1:
+                st.success("Air Layak Minum")
+            else:
+                st.error("Air Tidak Layak")
 
-    except:
-        st.info("SHAP tidak tersedia untuk model ini.")
+# =============================
+# CSV MODE
+# =============================
+else:
+    file = st.file_uploader("Upload file CSV", type=["csv"])
+
+    if file:
+        df = pd.read_csv(file)
+        st.dataframe(df)
+
+        if st.button("🚀 Analisis Semua Data"):
+
+            pred = model.predict(df)
+            prob = model.predict_proba(df)[:,1]
+
+            df["Prediction"] = pred
+            df["Probability"] = prob
+            df["Risk_Level"] = df["Probability"].apply(risk_label)
+
+            df = df.sort_values("Probability", ascending=False)
+            df["Ranking"] = range(1, len(df)+1)
+
+            st.markdown("## 📊 Hasil Ranking")
+            st.dataframe(df)
+
+            # Summary Dashboard
+            st.markdown("## 📈 Dashboard Summary")
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.metric("Total Sampel", len(df))
+
+            with col2:
+                st.metric("Rata-rata Probabilitas", f"{df['Probability'].mean()*100:.2f}%")
+
+            with col3:
+                st.metric("Jumlah Layak", int(df["Prediction"].sum()))
+
+            # Chart
+            st.markdown("## 📊 Distribusi Probabilitas")
+            fig = plt.figure()
+            plt.hist(df["Probability"], bins=10)
+            plt.xlabel("Probabilitas")
+            plt.ylabel("Jumlah")
+            st.pyplot(fig)
+
+            # Download
+            csv = df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "⬇ Download Hasil",
+                csv,
+                "hasil_analisis_air.csv",
+                "text/csv"
+            )
+
+# =============================
+# FOOTER
+# =============================
+st.markdown("---")
+st.caption("DSS Kelayakan Air Minum © 2026 | Sistem Pendukung Keputusan Berbasis Machine Learning")

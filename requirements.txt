@@ -4,3 +4,5 @@ joblib
 numpy
 pandas
 matplotlib
+plotly
+shap
