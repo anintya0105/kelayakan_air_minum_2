@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import joblib
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score
@@ -55,8 +54,20 @@ y = df["Potability"]
 # ======================================
 # LOAD MODELS (.pkl YANG KAMU PUNYA)
 # ======================================
-rf = joblib.load("model_random_forest.pkl")
-svm = joblib.load("support_vector_machine.pkl")
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+
+# Random Forest
+rf = RandomForestClassifier(random_state=42)
+rf.fit(X, y)
+
+# Scaling untuk SVM
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+svm = SVC(probability=True, random_state=42)
+svm.fit(X_scaled, y)
+
 
 # ======================================
 # SCALING UNTUK SVM (BUAT OTOMATIS)
