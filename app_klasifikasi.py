@@ -2,207 +2,172 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import time
 import plotly.graph_objects as go
-import plotly.express as px
+import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score
 
-# =============================
+# ======================================
 # PAGE CONFIG
-# =============================
+# ======================================
 st.set_page_config(
-    page_title="DSS Kelayakan Air Minum - Enterprise",
+    page_title="Water Quality AI System",
     page_icon="💧",
     layout="wide"
 )
 
-# =============================
-# CUSTOM CSS
-# =============================
+# ======================================
+# CUSTOM DARK UI
+# ======================================
 st.markdown("""
 <style>
-.main {background-color: #f4f6f9;}
-[data-testid="stSidebar"] {background-color: #0E1117;}
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] div {color: white;}
-.stButton>button {border-radius: 10px;height:45px;font-weight:bold;width:100%;}
-.info-box {
-    background-color: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+.big-title {
+    font-size:42px !important;
+    font-weight:800;
+    color:#00C9A7;
+}
+.card {
+    background-color:#1E1E2F;
+    padding:20px;
+    border-radius:15px;
+    box-shadow:0 4px 15px rgba(0,0,0,0.4);
+}
+.stMetric {
+    background-color:#1E1E2F;
+    padding:15px;
+    border-radius:12px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# =============================
-# LOAD MODEL
-# =============================
-from sklearn.ensemble import RandomForestClassifier
+st.markdown('<p class="big-title">💧 Enterprise Water Quality AI</p>', unsafe_allow_html=True)
+st.caption("Random Forest vs SVM vs Voting Ensemble")
 
-dataset = pd.read_csv("water_potability.csv")
-dataset = dataset.dropna()
+# ======================================
+# LOAD DATA
+# ======================================
+df = pd.read_csv("water_potability.csv")
+df = df.dropna()
 
-X = dataset.drop("Potability", axis=1)
-y = dataset["Potability"]
+X = df.drop("Potability", axis=1)
+y = df["Potability"]
 
-model = RandomForestClassifier(random_state=42)
-model.fit(X, y)
+# ======================================
+# LOAD MODELS (.pkl)
+# ======================================
+rf = joblib.load("random_forest.pkl")
+svm = joblib.load("svm_model.pkl")
+scaler = joblib.load("scaler.pkl")
+ensemble = joblib.load("ensemble.pkl")
 
+# ======================================
+# MODEL ACCURACY
+# ======================================
+rf_acc = accuracy_score(y, rf.predict(X))
 
-# =============================
-# HEADER
-# =============================
-st.title("💧 Enterprise Decision Support System")
-st.subheader("Analisis Kelayakan Air Minum Berbasis Machine Learning")
+X_scaled = scaler.transform(X)
+svm_acc = accuracy_score(y, svm.predict(X_scaled))
+ensemble_acc = accuracy_score(y, ensemble.predict(X_scaled))
 
-# =============================
-# SIDEBAR INPUT
-# =============================
-st.sidebar.header("⚙ Control Panel")
+models = ["Random Forest", "SVM", "Ensemble"]
+scores = [rf_acc, svm_acc, ensemble_acc]
 
-ph = st.sidebar.number_input("pH", 0.0, 14.0, 7.0)
-hardness = st.sidebar.number_input("Hardness", 0.0, 500.0, 150.0)
-solids = st.sidebar.number_input("Solids (TDS)", 0.0, 50000.0, 20000.0)
-chloramines = st.sidebar.number_input("Chloramines", 0.0, 20.0, 7.0)
-sulfate = st.sidebar.number_input("Sulfate", 0.0, 500.0, 300.0)
-conductivity = st.sidebar.number_input("Conductivity", 0.0, 1000.0, 400.0)
-organic_carbon = st.sidebar.number_input("Organic Carbon", 0.0, 50.0, 10.0)
-trihalomethanes = st.sidebar.number_input("Trihalomethanes", 0.0, 200.0, 70.0)
-turbidity = st.sidebar.number_input("Turbidity", 0.0, 10.0, 4.0)
+best_model_name = models[np.argmax(scores)]
 
-analyze = st.sidebar.button("🚀 Analisis Sekarang")
+# ======================================
+# ACCURACY SECTION
+# ======================================
+st.markdown("## 📊 Model Performance Comparison")
 
-# =============================
-# RISK FUNCTION
-# =============================
-def risk_label(prob):
-    if prob >= 0.75:
-        return "🟢 Risiko Rendah"
-    elif prob >= 0.5:
-        return "🟡 Risiko Sedang"
+col1, col2, col3 = st.columns(3)
+
+col1.metric("🌳 Random Forest", f"{rf_acc:.3f}")
+col2.metric("🔵 SVM", f"{svm_acc:.3f}")
+col3.metric("🤖 Ensemble", f"{ensemble_acc:.3f}")
+
+# Performance Chart
+fig, ax = plt.subplots()
+ax.bar(models, scores)
+ax.set_ylim(0,1)
+ax.set_ylabel("Accuracy")
+ax.set_facecolor("#1E1E2F")
+fig.patch.set_facecolor("#0E1117")
+st.pyplot(fig)
+
+st.success(f"🏆 Best Model Automatically Selected: {best_model_name}")
+
+# ======================================
+# INPUT SECTION
+# ======================================
+st.markdown("## 🔎 Water Parameter Input")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    ph = st.number_input("pH", 0.0, 14.0, 7.5)
+    hardness = st.number_input("Hardness", 0.0, 500.0, 100.0)
+    solids = st.number_input("Solids", 0.0, 50000.0, 300.0)
+
+with col2:
+    chloramines = st.number_input("Chloramines", 0.0, 15.0, 2.5)
+    sulfate = st.number_input("Sulfate", 0.0, 1000.0, 100.0)
+    conductivity = st.number_input("Conductivity", 0.0, 1000.0, 300.0)
+
+with col3:
+    organic_carbon = st.number_input("Organic Carbon", 0.0, 30.0, 3.0)
+    trihalomethanes = st.number_input("Trihalomethanes", 0.0, 200.0, 50.0)
+    turbidity = st.number_input("Turbidity", 0.0, 10.0, 2.0)
+
+input_data = np.array([[ph, hardness, solids, chloramines,
+                        sulfate, conductivity, organic_carbon,
+                        trihalomethanes, turbidity]])
+
+# ======================================
+# PREDICTION
+# ======================================
+if st.button("🚀 Analyze Water Quality"):
+
+    if best_model_name == "Random Forest":
+        prediction = rf.predict(input_data)
+        probability = rf.predict_proba(input_data)
+
+    elif best_model_name == "SVM":
+        scaled = scaler.transform(input_data)
+        prediction = svm.predict(scaled)
+        probability = svm.predict_proba(scaled)
+
     else:
-        return "🔴 Risiko Tinggi"
+        scaled = scaler.transform(input_data)
+        prediction = ensemble.predict(scaled)
+        probability = ensemble.predict_proba(scaled)
 
-# =============================
-# ANALYSIS
-# =============================
-if analyze:
+    prob = probability[0][1]
 
-    progress = st.progress(0)
-    for i in range(100):
-        time.sleep(0.01)
-        progress.progress(i + 1)
+    # Gauge Chart
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=prob * 100,
+        title={'text': "Potability Probability (%)"},
+        gauge={
+            'axis': {'range': [0, 100]},
+            'steps': [
+                {'range': [0, 50], 'color': "red"},
+                {'range': [50, 75], 'color': "yellow"},
+                {'range': [75, 100], 'color': "green"},
+            ],
+        }
+    ))
 
-    input_df = pd.DataFrame([[ 
-        ph, hardness, solids, chloramines,
-        sulfate, conductivity, organic_carbon,
-        trihalomethanes, turbidity
-    ]], columns=[
-        "ph","Hardness","Solids","Chloramines",
-        "Sulfate","Conductivity","Organic_carbon",
-        "Trihalomethanes","Turbidity"
-    ])
+    st.plotly_chart(fig, use_container_width=True)
 
-    pred = model.predict(input_df)[0]
-    prob = model.predict_proba(input_df)[0][1]
+    if prediction[0] == 1:
+        st.success("✅ Water is SAFE for Drinking")
+    else:
+        st.error("❌ Water is NOT Safe for Drinking")
 
-    st.markdown("## 📊 Hasil Analisis")
+    st.write(f"Confidence Score: {prob:.3f}")
 
-    col1, col2 = st.columns(2)
-
-    # GAUGE
-    with col1:
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=prob * 100,
-            title={'text': "Probabilitas Kelayakan (%)"},
-            gauge={
-                'axis': {'range': [0, 100]},
-                'steps': [
-                    {'range': [0, 50], 'color': "red"},
-                    {'range': [50, 75], 'color': "yellow"},
-                    {'range': [75, 100], 'color': "green"},
-                ],
-            }
-        ))
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.metric("Tingkat Risiko", risk_label(prob))
-        if pred == 1:
-            st.success("### ✅ Air Layak Minum")
-        else:
-            st.error("### ❌ Air Tidak Layak")
-
-    # =============================
-    # FEATURE IMPORTANCE
-    # =============================
-    st.markdown("## 📈 Parameter Paling Berpengaruh")
-
-    importance_df = pd.DataFrame({
-        "Parameter": input_df.columns,
-        "Tingkat Pengaruh": model.feature_importances_
-    }).sort_values(by="Tingkat Pengaruh", ascending=True)
-
-    fig2 = px.bar(
-        importance_df,
-        x="Tingkat Pengaruh",
-        y="Parameter",
-        orientation='h'
-    )
-
-    st.plotly_chart(fig2, use_container_width=True)
-
-# =============================
-# PENJELASAN PARAMETER
-# =============================
-st.markdown("## 📘 Penjelasan Parameter Kualitas Air")
-
-st.markdown("""
-### 1️⃣ pH
-Menunjukkan tingkat keasaman atau kebasaan air.  
-Rentang ideal air minum: **6.5 – 8.5**.  
-- pH terlalu rendah → air bersifat asam, dapat menyebabkan korosi pipa dan gangguan pencernaan.  
-- pH terlalu tinggi → rasa pahit dan dapat mengganggu metabolisme tubuh.
-
-### 2️⃣ Hardness
-Mengukur kadar kalsium dan magnesium.  
-- Terlalu tinggi → menyebabkan kerak dan gangguan ginjal jangka panjang.  
-- Terlalu rendah → air terasa hambar.
-
-### 3️⃣ Solids (TDS)
-Total zat terlarut dalam air.  
-- Tinggi → rasa tidak enak dan kemungkinan kontaminasi.  
-- Terlalu rendah → air miskin mineral.
-
-### 4️⃣ Chloramines
-Digunakan sebagai desinfektan.  
-- Berlebihan → iritasi kulit dan mata.  
-- Kurang → risiko mikroorganisme tidak mati.
-
-### 5️⃣ Sulfate
-Mineral alami dalam air.  
-- Tinggi → dapat menyebabkan efek laksatif.  
-
-### 6️⃣ Conductivity
-Kemampuan air menghantarkan listrik (indikasi ion terlarut).  
-- Tinggi → kandungan mineral tinggi.
-
-### 7️⃣ Organic Carbon
-Menunjukkan kandungan bahan organik.  
-- Tinggi → indikasi potensi pertumbuhan bakteri.
-
-### 8️⃣ Trihalomethanes
-Produk sampingan klorinasi.  
-- Tinggi → berpotensi berdampak jangka panjang terhadap kesehatan.
-
-### 9️⃣ Turbidity
-Tingkat kekeruhan air.  
-- Tinggi → menunjukkan adanya partikel tersuspensi dan mikroorganisme.
-""")
-
-# =============================
+# ======================================
 # FOOTER
-# =============================
+# ======================================
 st.markdown("---")
-st.caption("DSS Kelayakan Air Minum © 2026 | Enterprise ML-Based Decision Support System")
+st.caption("Enterprise AI Decision Support System © 2026")
