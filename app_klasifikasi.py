@@ -5,56 +5,47 @@ import joblib
 import time
 import plotly.graph_objects as go
 import plotly.express as px
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, roc_curve, auc
 
 # =============================
 # PAGE CONFIG
 # =============================
 st.set_page_config(
-    page_title="DSS Kelayakan Air Minum",
+    page_title="DSS Kelayakan Air Minum - Enterprise",
     page_icon="💧",
     layout="wide"
 )
 
 # =============================
-# CUSTOM CSS (Enterprise UI)
+# CUSTOM CSS
 # =============================
 st.markdown("""
 <style>
-.main {
-    background-color: #f4f6f9;
-}
-[data-testid="stSidebar"] {
-    background-color: #0E1117;
-}
+.main {background-color: #f4f6f9;}
+[data-testid="stSidebar"] {background-color: #0E1117;}
 [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] div {
-    color: white;
-}
-.stButton>button {
-    border-radius: 10px;
-    height: 45px;
-    font-weight: bold;
-    width: 100%;
-}
-.metric-card {
-    background-color: white;
-    padding: 20px;
-    border-radius: 15px;
-    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
-}
+[data-testid="stSidebar"] div {color: white;}
+.stButton>button {border-radius: 10px;height:45px;font-weight:bold;width:100%;}
 </style>
 """, unsafe_allow_html=True)
 
 # =============================
-# LOAD MODEL
+# LOAD MODEL & DATA
 # =============================
 model = joblib.load("model_random_forest.pkl")
+
+# Dataset untuk evaluasi (WAJIB ADA DI REPO)
+dataset = pd.read_csv("water_potability.csv")
+
+X = dataset.drop("Potability", axis=1)
+y = dataset["Potability"]
 
 # =============================
 # HEADER
 # =============================
-st.title("💧 Decision Support System")
-st.subheader("Analisis Kelayakan Air Minum Berbasis Machine Learning")
+st.title("💧 Enterprise Decision Support System")
+st.subheader("Analisis & Evaluasi Kelayakan Air Minum")
 
 # =============================
 # SIDEBAR INPUT
@@ -74,7 +65,7 @@ turbidity = st.sidebar.number_input("Turbidity", 0.0, 10.0, 4.0)
 analyze = st.sidebar.button("🚀 Analisis Sekarang")
 
 # =============================
-# RISK LABEL FUNCTION
+# RISK FUNCTION
 # =============================
 def risk_label(prob):
     if prob >= 0.75:
@@ -89,7 +80,6 @@ def risk_label(prob):
 # =============================
 if analyze:
 
-    # Progress animation
     progress = st.progress(0)
     for i in range(100):
         time.sleep(0.01)
@@ -99,22 +89,16 @@ if analyze:
         ph, hardness, solids, chloramines,
         sulfate, conductivity, organic_carbon,
         trihalomethanes, turbidity
-    ]], columns=[
-        "ph","Hardness","Solids","Chloramines",
-        "Sulfate","Conductivity","Organic_carbon",
-        "Trihalomethanes","Turbidity"
-    ])
+    ]], columns=X.columns)
 
     pred = model.predict(input_df)[0]
     prob = model.predict_proba(input_df)[0][1]
 
-    st.markdown("## 📊 Hasil Analisis")
+    st.markdown("## 📊 Hasil Prediksi")
 
     col1, col2 = st.columns(2)
 
-    # =============================
-    # GAUGE CHART
-    # =============================
+    # GAUGE
     with col1:
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
@@ -122,7 +106,6 @@ if analyze:
             title={'text': "Probabilitas Layak (%)"},
             gauge={
                 'axis': {'range': [0, 100]},
-                'bar': {'color': "blue"},
                 'steps': [
                     {'range': [0, 50], 'color': "red"},
                     {'range': [50, 75], 'color': "yellow"},
@@ -132,12 +115,9 @@ if analyze:
         ))
         st.plotly_chart(fig, use_container_width=True)
 
-    # =============================
-    # RESULT CARD
-    # =============================
+    # RESULT
     with col2:
         st.metric("Risk Level", risk_label(prob))
-
         if pred == 1:
             st.success("### ✅ Air Layak Minum")
         else:
@@ -148,26 +128,65 @@ if analyze:
     # =============================
     st.markdown("## 📈 Feature Importance")
 
-    importance = model.feature_importances_
-    feature_names = input_df.columns
-
     importance_df = pd.DataFrame({
-        "Feature": feature_names,
-        "Importance": importance
+        "Feature": X.columns,
+        "Importance": model.feature_importances_
     }).sort_values(by="Importance", ascending=True)
 
     fig2 = px.bar(
         importance_df,
         x="Importance",
         y="Feature",
-        orientation='h',
-        title="Pengaruh Setiap Parameter Terhadap Prediksi"
+        orientation='h'
     )
-
     st.plotly_chart(fig2, use_container_width=True)
+
+    # =============================
+    # CONFUSION MATRIX
+    # =============================
+    st.markdown("## 📊 Confusion Matrix")
+
+    y_pred = model.predict(X)
+    cm = confusion_matrix(y, y_pred)
+
+    fig3 = plt.figure()
+    plt.imshow(cm)
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.colorbar()
+    st.pyplot(fig3)
+
+    # =============================
+    # ROC CURVE
+    # =============================
+    st.markdown("## 📈 ROC Curve")
+
+    y_prob = model.predict_proba(X)[:,1]
+    fpr, tpr, _ = roc_curve(y, y_prob)
+    roc_auc = auc(fpr, tpr)
+
+    fig4 = plt.figure()
+    plt.plot(fpr, tpr)
+    plt.plot([0,1],[0,1],'--')
+    plt.title(f"ROC Curve (AUC = {roc_auc:.2f})")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    st.pyplot(fig4)
+
+    # =============================
+    # DISTRIBUTION
+    # =============================
+    st.markdown("## 📊 Distribusi Probabilitas Dataset")
+
+    fig5 = plt.figure()
+    plt.hist(y_prob, bins=20)
+    plt.axvline(prob, linestyle="dashed")
+    plt.title("Distribusi Probabilitas")
+    st.pyplot(fig5)
 
 # =============================
 # FOOTER
 # =============================
 st.markdown("---")
-st.caption("DSS Kelayakan Air Minum © 2026 | Enterprise Decision Support System")
+st.caption("DSS Kelayakan Air Minum © 2026 | Enterprise ML Dashboard")
